@@ -8,6 +8,7 @@
 - **智能风扇控制**：
   - **自动模式**：根据传感器读取的温度，通过预设算法自动调节风扇 PWM 占空比。
   - **手动模式**：通过 MQTT 远程设置风扇转速百分比（0-100%）。
+- **时间同步**：通过 NTP 协议自动同步网络时间，支持北京时间（CST-8）等时区配置，确保数据具备精确的时间戳。
 - **转速监测**：实时捕获风扇 TACH 信号，计算并反馈风扇实时 RPM。
 - **数据同步**：通过 MQTT 协议发布传感器数据和风扇状态，支持接收控制命令。
 - **状态持久化**：自动保存 BSEC 算法状态到 ESP32 Flash 中，确保断电重启后空气质量校准信息不丢失。
@@ -50,11 +51,12 @@
 
 ## 软件配置
 
-在代码中，您可能需要根据实际环境修改以下配置：
+在代码或 `config.h` 中，您可能需要根据实际环境修改以下配置：
 
 - `WIFI_SSID` / `WIFI_PASSWD`: WiFi 名称和密码。
 - `MQTT_HOST` / `MQTT_PORT`: MQTT 服务器地址和端口。
 - `MQTT_USER` / `MQTT_PASSWD`: MQTT 认证信息。
+- `TIME_ZONE`: 时区设置（默认 `CST-8` 为北京时间）。
 
 ## MQTT 话题说明
 
@@ -64,7 +66,10 @@
 - `modbus-mqtt/sensor/bme680_iaq`: 空气质量指数 (0-500)
 - `modbus-mqtt/sensor/fan_rpm`: 风扇实时转速
 - `modbus-mqtt/sensor/fan_speed_percent`: 当前风扇功率百分比
-- `modbus-mqtt/sensor/esp32_telemetry`: 完整的 JSON 格式数据
+- `modbus-mqtt/sensor/esp32_telemetry`: 完整的 JSON 格式数据。包含字段：
+  - `timestamp`: 格式为 `yyyy-mm-dd HH:MM:SS` 的本地时间戳。
+  - `ts_ms`: 系统运行毫秒数。
+  - `temp`, `hum`, `pres`, `iaq`, `fan_rpm` 等环境及风扇指标。
 
 ### 订阅 (Control)
 - `modbus-mqtt/control/fan_mode`: 设置模式 (`auto` 或 `manual`)

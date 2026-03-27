@@ -5,7 +5,12 @@
 #include <Preferences.h>
 #include <bsec2.h>
 #include <math.h>
+#include <time.h>
 #include "config.h"
+
+#ifndef TIME_ZONE
+#define TIME_ZONE "CST-8"
+#endif
 
 #define SDA_PIN        8
 #define SCL_PIN        9
@@ -386,25 +391,25 @@ bool initBSEC() {
 
 // ===== 发布数据 =====
 void publishTelemetry() {
+  publishText(TOPIC_FAN_MODE_STATE, fanAutoMode ? "auto" : "manual");
+
+  char timeStr[24] = {0};
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  } else {
+    snprintf(timeStr, sizeof(timeStr), "1970-01-01 00:00:00");
+  }
+  
+  // 打印调试信息到串口，不受 sensor 数据是否就绪的限制
+  Serial.print("Current Time: "); Serial.println(timeStr);
+
   if (g_data.ts_ms == 0 || isnan(g_data.temp) || isnan(g_data.hum)) {
     return;
   }
 
-  publishFloat(TOPIC_TEMP, g_data.temp, 2);
-  publishFloat(TOPIC_HUM, g_data.hum, 2);
-  publishFloat(TOPIC_PRES, g_data.pres_hpa, 2);
-  publishFloat(TOPIC_GAS, g_data.gas_kohm, 2);
-  publishFloat(TOPIC_IAQ, g_data.iaq, 1);
-
-  publishInt(TOPIC_IAQ_ACC, g_data.iaq_acc);
-  publishFloat(TOPIC_STATIC_IAQ, g_data.static_iaq, 1);
-  publishFloat(TOPIC_CO2_EQ, g_data.co2_eq, 0);
-  publishFloat(TOPIC_BVOC_EQ, g_data.bvoc_eq, 2);
-  publishInt(TOPIC_FAN_SPEED, g_fanPercent);
-  publishFloat(TOPIC_FAN_RPM, fanRPM, 0);
-  publishText(TOPIC_FAN_MODE_STATE, fanAutoMode ? "auto" : "manual");
-
   JsonDocument doc;
+  doc["timestamp"] = timeStr;
   doc["ts_ms"] = g_data.ts_ms;
   doc["temp"] = g_data.temp;
   doc["hum"] = g_data.hum;
@@ -424,6 +429,7 @@ void publishTelemetry() {
   mqtt.publish(TOPIC_JSON, payload, true);
 
   Serial.println("----- BSEC2 + FAN -----");
+  Serial.print("Time: "); Serial.println(timeStr);
   Serial.print("Temp: "); Serial.println(g_data.temp);
   Serial.print("Hum : "); Serial.println(g_data.hum);
   Serial.print("Pres: "); Serial.println(g_data.pres_hpa);
@@ -467,6 +473,7 @@ void setup() {
   Serial.println("BSEC2 init OK");
 
   connectWiFi();
+  configTzTime(TIME_ZONE, "pool.ntp.org", "time.nist.gov");
   connectMQTT();
 }
 
