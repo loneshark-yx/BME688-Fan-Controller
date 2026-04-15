@@ -332,6 +332,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 void connectMQTT() {
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(mqttCallback);
+  // 增加缓冲区以容纳较大的 JSON 负载
+  mqtt.setBufferSize(512);
 
   while (!mqtt.connected()) {
     String clientId = "esp32c3-bme688-" + String((uint32_t)ESP.getEfuseMac(), HEX);
@@ -405,8 +407,22 @@ void publishTelemetry() {
   Serial.print("Current Time: "); Serial.println(timeStr);
 
   if (g_data.ts_ms == 0 || isnan(g_data.temp) || isnan(g_data.hum)) {
+    Serial.println("Sensor data not ready, skipping telemetry publish.");
     return;
   }
+
+  // 发布具体主题，方便 Node-RED 单独订阅
+  publishFloat(TOPIC_TEMP, g_data.temp);
+  publishFloat(TOPIC_HUM, g_data.hum);
+  publishFloat(TOPIC_PRES, g_data.pres_hpa);
+  publishFloat(TOPIC_GAS, g_data.gas_kohm);
+  publishFloat(TOPIC_IAQ, g_data.iaq);
+  publishInt(TOPIC_IAQ_ACC, g_data.iaq_acc);
+  publishFloat(TOPIC_STATIC_IAQ, g_data.static_iaq);
+  publishFloat(TOPIC_CO2_EQ, g_data.co2_eq);
+  publishFloat(TOPIC_BVOC_EQ, g_data.bvoc_eq);
+  publishInt(TOPIC_FAN_SPEED, g_fanPercent);
+  publishFloat(TOPIC_FAN_RPM, fanRPM);
 
   JsonDocument doc;
   doc["timestamp"] = timeStr;
@@ -425,23 +441,18 @@ void publishTelemetry() {
   doc["fan_mode"] = fanAutoMode ? "auto" : "manual";
 
   char payload[384];
-  serializeJson(doc, payload, sizeof(payload));
-  mqtt.publish(TOPIC_JSON, payload, true);
+  size_t n = serializeJson(doc, payload, sizeof(payload));
+  bool pubOk = mqtt.publish(TOPIC_JSON, payload, true);
 
   Serial.println("----- BSEC2 + FAN -----");
-  Serial.print("Time: "); Serial.println(timeStr);
+  Serial.print("MQTT JSON Publish: "); Serial.println(pubOk ? "SUCCESS" : "FAILED (Check Buffer Size)");
+  Serial.print("JSON Length: "); Serial.println(n);
   Serial.print("Temp: "); Serial.println(g_data.temp);
   Serial.print("Hum : "); Serial.println(g_data.hum);
-  Serial.print("Pres: "); Serial.println(g_data.pres_hpa);
-  Serial.print("Gas : "); Serial.println(g_data.gas_kohm);
   Serial.print("IAQ : "); Serial.print(g_data.iaq);
   Serial.print(" (acc="); Serial.print(g_data.iaq_acc); Serial.println(")");
-  Serial.print("CO2 : "); Serial.println(g_data.co2_eq);
-  Serial.print("bVOC: "); Serial.println(g_data.bvoc_eq);
   Serial.print("Fan : "); Serial.print(g_fanPercent); Serial.println("%");
   Serial.print("RPM : "); Serial.println(fanRPM);
-  Serial.print("Mode: "); Serial.println(fanAutoMode ? "auto" : "manual");
-  Serial.print("JSON: "); Serial.println(payload);
 }
 
 void setup() {
